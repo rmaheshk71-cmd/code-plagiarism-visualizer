@@ -1,0 +1,45 @@
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
+from fastapi.middleware.cors import CORSMiddleware
+import os
+
+# Import the core logic
+from plag_detector import detect_plagiarism
+
+app = FastAPI(title="Plag Detector API")
+
+# Setup CORS just in case
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+frontend_path = os.path.join(os.path.dirname(__file__), '..', 'frontend')
+os.makedirs(frontend_path, exist_ok=True)
+app.mount("/static", StaticFiles(directory=frontend_path), name="static")
+
+@app.get("/")
+async def root():
+    # Redirect root to our frontend UI
+    return RedirectResponse(url="/static/index.html")
+
+@app.post("/api/analyze")
+async def analyze(file1: UploadFile = File(...), file2: UploadFile = File(...)):
+    if not file1 or not file2:
+        raise HTTPException(status_code=400, detail="Both files must be provided.")
+    
+    content1 = (await file1.read()).decode('utf-8', errors='ignore')
+    content2 = (await file2.read()).decode('utf-8', errors='ignore')
+    
+    # Process the code using our obfuscation-resistant algorithm
+    result = detect_plagiarism(content1, content2)
+    return result
+
+if __name__ == "__main__":
+    import uvicorn
+    # Make sure to run this file directly to start the server!
+    uvicorn.run(app, host="127.0.0.1", port=8000)
